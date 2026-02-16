@@ -6,6 +6,7 @@
 <title>IDP Comparator — MuleSoft OCR Audit</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236389f8'/%3E%3Cstop offset='100%25' stop-color='%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='14' font-weight='700' fill='white' text-anchor='middle'%3EID%3C/text%3E%3C/svg%3E" />
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #0c0e14;
@@ -180,6 +181,8 @@
   .rule-pill.ok-rule { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
   .rule-pill.warn-rule { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
   .rule-pill.off { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); text-decoration: line-through; }
+  .btn-export { background: var(--surface-2); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
+  .btn-export:hover { border-color: var(--green); background: rgba(52,211,153,0.08); }
   @media (max-width: 768px) {
     .doc-card-body { grid-template-columns: 1fr; }
     .json-panel:first-child { border-right: none; border-bottom: 1px solid var(--border); }
@@ -505,6 +508,7 @@ function renderResultsView() {
   return `<div class="topbar"><div class="topbar-left"><div class="logo">ID</div><div><h1>IDP Comparator</h1><div class="topbar-subtitle">MuleSoft OCR Audit Tool</div></div></div>
     <div class="topbar-actions">
       <button class="btn btn-settings" id="settingsBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Param\u00e8tres</button>
+      <button class="btn btn-export" id="exportBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</button>
       <button class="btn btn-ghost" id="backBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Retour</button>
       <button class="btn btn-ghost" id="newBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouvelle analyse</button>
     </div></div>
@@ -553,6 +557,7 @@ function bindResultEvents() {
   document.getElementById('backBtn').addEventListener('click', () => { state.view = 'input'; render(); });
   document.getElementById('newBtn').addEventListener('click', () => { state.docs = [{ id: state.nextId++, name: '', idp: '', truth: '' }]; state.view = 'input'; render(); });
   document.getElementById('settingsBtn').addEventListener('click', () => { state.showSettings = true; render(); });
+  document.getElementById('exportBtn').addEventListener('click', exportToExcel);
 }
 
 function bindSettingsEvents() {
@@ -603,6 +608,90 @@ function runComparison() {
   state.view = 'results';
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ====== EXCEL EXPORT ======
+function exportToExcel() {
+  if (!state.results) return;
+  const { stats, docs } = state.results;
+  const RULE_LABELS = { accents: 'Accent toléré', gender: 'Genre toléré', truncation: 'Troncature tolérée', ocr: 'OCR similaire' };
+  const STATUS_LABELS = { ok: 'OK', ko: 'KO', warn: 'Mineur' };
+  const wb = XLSX.utils.book_new();
+
+  // --- Sheet 1: Synthèse ---
+  const summaryData = [];
+  summaryData.push(['IDP Comparator — Synthèse des résultats']);
+  summaryData.push(['Date', new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })]);
+  summaryData.push([]);
+  summaryData.push(['Indicateur', 'Valeur']);
+  summaryData.push(['Champs analysés', stats.totalFields]);
+  summaryData.push(['Taux de match', stats.pct + '%']);
+  summaryData.push(['OK', stats.okCount]);
+  summaryData.push(['Erreurs (KO)', stats.koCount]);
+  summaryData.push(['Mineurs', stats.warnCount]);
+  summaryData.push([]);
+  summaryData.push(['Récap par document']);
+  summaryData.push(['Document', 'Total', 'OK', 'KO', 'Mineurs', 'Taux match']);
+  for (const doc of docs) {
+    const fields = doc.rows.filter(r => r.type === 'field');
+    const ok = fields.filter(r => r.status === 'ok').length;
+    const ko = fields.filter(r => r.status === 'ko').length;
+    const warn = fields.filter(r => r.status === 'warn').length;
+    const pct = fields.length > 0 ? Math.round((ok / fields.length) * 100) + '%' : '—';
+    summaryData.push([doc.name, fields.length, ok, ko, warn, pct]);
+  }
+  const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+  ws1['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Synthèse');
+
+  // --- Sheet 2: Détail ---
+  const detailData = [];
+  detailData.push(['Document', 'Section', 'Champ', 'IDP MuleSoft', 'Source de Vérité', 'Statut', 'Tolérance']);
+  let currentSection = '';
+  for (const doc of docs) {
+    for (const row of doc.rows) {
+      if (row.type === 'section') {
+        currentSection = row.label;
+        continue;
+      }
+      detailData.push([
+        doc.name,
+        currentSection,
+        row.field,
+        row.idpVal,
+        row.truthVal,
+        STATUS_LABELS[row.status] || row.status,
+        row.rule ? (RULE_LABELS[row.rule] || row.rule) : ''
+      ]);
+    }
+  }
+  const ws2 = XLSX.utils.aoa_to_sheet(detailData);
+  ws2['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 28 }, { wch: 30 }, { wch: 30 }, { wch: 10 }, { wch: 20 }];
+  ws2['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: detailData.length - 1, c: 6 } }) };
+  XLSX.utils.book_append_sheet(wb, ws2, 'Détail');
+
+  // --- Sheet 3: Écarts ---
+  if (stats.errors.length > 0) {
+    const errData = [];
+    errData.push(['Document', 'Champ', 'IDP MuleSoft', 'Attendu', 'Sévérité', 'Tolérance']);
+    for (const e of stats.errors) {
+      errData.push([
+        e.doc,
+        e.field,
+        e.idp,
+        e.truth,
+        e.severity === 'ko' ? 'KO' : 'Mineur',
+        e.rule ? (RULE_LABELS[e.rule] || e.rule) : ''
+      ]);
+    }
+    const ws3 = XLSX.utils.aoa_to_sheet(errData);
+    ws3['!cols'] = [{ wch: 20 }, { wch: 28 }, { wch: 30 }, { wch: 30 }, { wch: 12 }, { wch: 20 }];
+    ws3['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: errData.length - 1, c: 5 } }) };
+    XLSX.utils.book_append_sheet(wb, ws3, 'Écarts');
+  }
+
+  const filename = 'IDP_Comparator_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, filename);
 }
 
 const EXAMPLE_IDP = {"contrat":{"raison_sociale":"SAS B","siret_siren":"4800124","numero_contrat":"A9910065019","college_population":null,"niveau_couverture":"Base"},"assure_principal":{"civilite":{"prenom":"Lea","genre":"F","date_naissance":"28/01/1990","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9rale","date_debut_affiliation":"01/01/2020"}},"ayants_droit":{"conjoint":{"present":false,"prenom":null,"genre":null,"date_naissance":null,"numero_securite_sociale":null,"type_regime":null},"enfants":[{"prenom":"Noea","genre":null,"date_naissance":"19/07/9","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9rale"}]},"paiement_et_signature":{"iban":null,"titulaire_rib":null,"signature_presente":true,"date_signature":"20/01/2026"}};
