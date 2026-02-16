@@ -230,6 +230,7 @@ function levenshtein(a, b) {
 function stripAccents(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function normalize(s) { return stripAccents(s).toLowerCase().trim(); }
 function stripTrailing(s) { return s.replace(/[\s\/\\.\-]+$/g, ''); }
+function isFullDate(s) { return /^\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}$/.test(s.trim()); }
 
 function isTruncationMatch(a, b) {
   const sa = stripTrailing(a.trim());
@@ -274,7 +275,9 @@ function classifyDiff(idpVal, truthVal, tolerances) {
   }
 
   // Rule 4: OCR similarity (Levenshtein) -> MINOR
-  if (tolerances.ocrSimilarity && a !== 'null' && b !== 'null' && a.length > 0 && b.length > 0) {
+  // Dates complètes (DD/MM/YYYY) exclues : un écart de date est toujours KO
+  const bothFullDates = isFullDate(a) && isFullDate(b);
+  if (tolerances.ocrSimilarity && !bothFullDates && a !== 'null' && b !== 'null' && a.length > 0 && b.length > 0) {
     const dist = levenshtein(normalize(a), normalize(b));
     const maxLen = Math.max(a.length, b.length);
     if (dist <= tolerances.ocrThreshold && dist > 0 && maxLen <= 40) {
