@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDP Comparator — MuleSoft OCR Audit</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0e14;
+    --surface: #151821;
+    --surface-2: #1c2030;
+    --surface-3: #242838;
+    --border: #2a2f42;
+    --border-focus: #4f6ef7;
+    --text: #e2e5f0;
+    --text-muted: #737a95;
+    --text-dim: #4e5470;
+    --green: #34d399;
+    --green-bg: rgba(52,211,153,0.07);
+    --green-border: rgba(52,211,153,0.22);
+    --red: #f87171;
+    --red-bg: rgba(248,113,113,0.07);
+    --red-border: rgba(248,113,113,0.22);
+    --amber: #fbbf24;
+    --amber-bg: rgba(251,191,36,0.07);
+    --amber-border: rgba(251,191,36,0.22);
+    --blue: #6389f8;
+    --blue-bg: rgba(99,137,248,0.08);
+    --purple: #a78bfa;
+    --cyan: #22d3ee;
+    --accent-gradient: linear-gradient(135deg, #6389f8, #a78bfa);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events: none; z-index: 0; }
+  .app { position: relative; z-index: 1; }
+  .topbar { padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(21,24,33,0.8); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 12px; }
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; color: #fff; box-shadow: 0 4px 20px rgba(99,137,248,0.25); }
+  .topbar h1 { font-size: 18px; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .topbar-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .topbar-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { padding: 9px 20px; border-radius: 8px; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { background: var(--accent-gradient); color: #fff; box-shadow: 0 2px 12px rgba(99,137,248,0.3); }
+  .btn-primary:hover { box-shadow: 0 4px 24px rgba(99,137,248,0.45); transform: translateY(-1px); }
+  .btn-ghost { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+  .btn-settings { background: var(--surface-2); color: var(--purple); border: 1px solid rgba(167,139,250,0.25); }
+  .btn-settings:hover { border-color: var(--purple); background: rgba(167,139,250,0.08); }
+  .settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s; padding: 24px; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .settings-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease-out; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  .settings-header { display: flex; align-items: center; justify-content: space-between; padding: 24px 28px 20px; border-bottom: 1px solid var(--border); }
+  .settings-header h2 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .settings-header h2 svg { color: var(--purple); }
+  .close-btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); cursor: pointer; padding: 6px; display: flex; transition: all 0.2s; }
+  .close-btn:hover { color: var(--text); border-color: var(--text-muted); }
+  .settings-body { padding: 24px 28px 28px; }
+  .settings-section { margin-bottom: 28px; }
+  .settings-section:last-child { margin-bottom: 0; }
+  .settings-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+  .rule-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 10px; transition: border-color 0.2s; }
+  .rule-card:hover { border-color: rgba(99,137,248,0.3); }
+  .rule-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .rule-info { flex: 1; }
+  .rule-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .rule-result-tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; letter-spacing: 0.3px; }
+  .rule-result-tag.ok { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .rule-result-tag.warn { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .rule-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .rule-examples { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px; }
+  .rule-example { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 3px 10px; border-radius: 6px; background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+  .rule-example .arr { color: var(--text-dim); margin: 0 3px; }
+  .toggle-wrap { flex-shrink: 0; }
+  .toggle { position: relative; width: 46px; height: 26px; cursor: pointer; display: block; }
+  .toggle input { display: none; }
+  .toggle-track { position: absolute; inset: 0; background: var(--surface-3); border-radius: 13px; border: 1px solid var(--border); transition: all 0.25s; }
+  .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: var(--text-muted); border-radius: 50%; transition: all 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .toggle input:checked ~ .toggle-track { background: rgba(99,137,248,0.2); border-color: var(--blue); }
+  .toggle input:checked ~ .toggle-thumb { left: 23px; background: var(--blue); }
+  .slider-row { margin-top: 12px; display: flex; align-items: center; gap: 14px; }
+  .slider-row input[type="range"] { flex: 1; -webkit-appearance: none; height: 6px; border-radius: 3px; background: var(--surface-3); outline: none; }
+  .slider-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--blue); cursor: pointer; box-shadow: 0 2px 8px rgba(99,137,248,0.4); }
+  .slider-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--blue); min-width: 28px; text-align: center; }
+  .slider-label { font-size: 12px; color: var(--text-muted); }
+  .input-view { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
+  .input-view h2 { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+  .input-view .subtitle { text-align: center; color: var(--text-muted); font-size: 14px; margin-bottom: 40px; }
+  .doc-cards { display: flex; flex-direction: column; gap: 24px; }
+  .doc-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; animation: cardIn 0.35s ease-out both; }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .doc-card-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .doc-card-header-left { display: flex; align-items: center; gap: 12px; }
+  .doc-num { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; }
+  .doc-name-input { background: var(--surface-3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; width: 240px; outline: none; transition: border-color 0.2s; }
+  .doc-name-input:focus { border-color: var(--border-focus); }
+  .doc-name-input::placeholder { color: var(--text-dim); }
+  .doc-card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .json-panel { padding: 20px; position: relative; }
+  .json-panel:first-child { border-right: 1px solid var(--border); }
+  .json-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .json-label.idp { color: var(--cyan); }
+  .json-label.truth { color: var(--purple); }
+  .label-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .label-dot.idp { background: var(--cyan); }
+  .label-dot.truth { background: var(--purple); }
+  textarea { width: 100%; min-height: 260px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; resize: vertical; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+  textarea:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(99,137,248,0.12); }
+  textarea::placeholder { color: var(--text-dim); }
+  .json-status { margin-top: 8px; font-size: 11px; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; min-height: 18px; }
+  .json-status.valid { color: var(--green); }
+  .json-status.invalid { color: var(--red); }
+  .add-doc-btn { width: 100%; padding: 20px; border-radius: 14px; border: 2px dashed var(--border); background: transparent; color: var(--text-muted); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .add-doc-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-bg); }
+  .actions-row { display: flex; justify-content: center; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+  .btn-compare { padding: 14px 40px; font-size: 15px; border-radius: 12px; }
+  .results-view { max-width: 1280px; margin: 0 auto; padding: 32px 24px 64px; }
+  .kpi-row { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 24px; text-align: center; flex: 1; min-width: 120px; animation: fadeUp 0.4s ease-out both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .kpi:nth-child(2) { animation-delay: 0.05s; } .kpi:nth-child(3) { animation-delay: 0.1s; } .kpi:nth-child(4) { animation-delay: 0.15s; } .kpi:nth-child(5) { animation-delay: 0.2s; }
+  .kpi .value { font-size: 32px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .kpi .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+  .kpi.green .value { color: var(--green); } .kpi.red .value { color: var(--red); } .kpi.amber .value { color: var(--amber); } .kpi.blue .value { color: var(--blue); }
+  .legend { display: flex; gap: 24px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; margin-bottom: 28px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .dot.green { background: var(--green); } .dot.red { background: var(--red); } .dot.amber { background: var(--amber); }
+  .doc-result { margin-bottom: 40px; animation: fadeUp 0.4s ease-out both; }
+  .doc-result-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .badge { font-size: 11px; padding: 4px 12px; border-radius: 20px; font-weight: 600; letter-spacing: 0.3px; }
+  .badge.ok { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .badge.ko { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .badge.warn { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: 13px; }
+  thead th { background: var(--surface-2); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+  tbody td { padding: 9px 16px; border-bottom: 1px solid rgba(42,47,66,0.5); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(99,137,248,0.03); }
+  .section-row td { background: rgba(99,137,248,0.05) !important; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--blue); padding: 8px 16px; }
+  .field-name { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); padding-left: 10px; }
+  .val { font-family: 'JetBrains Mono', monospace; font-size: 12px; word-break: break-all; max-width: 280px; }
+  .val.null-val { color: var(--text-dim); font-style: italic; }
+  .val.error-val { color: var(--red); }
+  .status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .status.ok { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .status.ko { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .status.warn { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .diff-hl { background: var(--red-bg); border: 1px solid var(--red-border); border-radius: 3px; padding: 1px 4px; }
+  .diff-hl-warn { background: var(--amber-bg); border: 1px solid var(--amber-border); border-radius: 3px; padding: 1px 4px; }
+  .tolerance-tag { font-size: 9px; padding: 1px 6px; border-radius: 4px; margin-left: 4px; font-weight: 500; letter-spacing: 0.3px; vertical-align: middle; }
+  .tolerance-tag.ok { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .tolerance-tag.warn { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .summary-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; margin-top: 8px; animation: fadeUp 0.4s ease-out both; }
+  .summary-box h3 { font-size: 14px; margin-bottom: 18px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .error-list { display: flex; flex-direction: column; gap: 8px; }
+  .error-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 8px; font-size: 13px; flex-wrap: wrap; }
+  .error-item.ko { background: var(--red-bg); border: 1px solid var(--red-border); }
+  .error-item.warn { background: var(--amber-bg); border: 1px solid var(--amber-border); }
+  .error-doc { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.06); white-space: nowrap; flex-shrink: 0; }
+  .no-errors { text-align: center; padding: 40px; color: var(--green); font-size: 15px; font-weight: 600; }
+  .no-errors svg { margin-bottom: 12px; }
+  .hidden { display: none !important; }
+  .remove-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 4px; border-radius: 6px; transition: all 0.2s; display: flex; align-items: center; }
+  .remove-btn:hover { color: var(--red); background: var(--red-bg); }
+  .example-link { color: var(--blue); cursor: pointer; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; opacity: 0.7; transition: opacity 0.2s; }
+  .example-link:hover { opacity: 1; }
+  .active-rules-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; align-items: center; }
+  .active-rules-bar .ar-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-right: 4px; }
+  .rule-pill { font-size: 11px; padding: 4px 12px; border-radius: 16px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+  .rule-pill.ok-rule { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .rule-pill.warn-rule { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .rule-pill.off { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); text-decoration: line-through; }
+  @media (max-width: 768px) {
+    .doc-card-body { grid-template-columns: 1fr; }
+    .json-panel:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+    .topbar { padding: 14px 16px; }
+    .input-view { padding: 24px 16px; }
+    .doc-name-input { width: 160px; }
+    table { font-size: 11px; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+// ====== STATE ======
+let state = {
+  view: 'input',
+  showSettings: false,
+  docs: [{ id: 1, name: '', idp: '', truth: '' }],
+  nextId: 2,
+  results: null,
+  tolerances: {
+    accents: true,
+    genderGrammar: true,
+    truncation: true,
+    ocrSimilarity: true,
+    ocrThreshold: 3,
+  }
+};
+
+// ====== TOLERANCE ENGINE ======
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function stripAccents(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function normalize(s) { return stripAccents(s).toLowerCase().trim(); }
+function stripTrailing(s) { return s.replace(/[\s\/\\.\-]+$/g, ''); }
+
+function isTruncationMatch(a, b) {
+  const sa = stripTrailing(a.trim());
+  const sb = stripTrailing(b.trim());
+  if (sa === sb) return true;
+  const longer = sa.length >= sb.length ? sa : sb;
+  const shorter = sa.length < sb.length ? sa : sb;
+  if (longer.startsWith(shorter)) {
+    return /^[\s\/\\.\-]*$/.test(longer.slice(shorter.length));
+  }
+  return false;
+}
+
+function isGenderGrammarMatch(a, b) {
+  const na = normalize(a);
+  const nb = normalize(b);
+  if (na === nb) return true;
+  const patterns = [[/e$/, ''], [/le$/, 'l'], [/ne$/, 'n'], [/se$/, 's'], [/s$/, '']];
+  for (const [re, rep] of patterns) {
+    if (na.replace(re, rep) === nb.replace(re, rep)) return true;
+  }
+  return false;
+}
+
+function classifyDiff(idpVal, truthVal, tolerances) {
+  const a = String(idpVal), b = String(truthVal);
+  if (a === b) return { status: 'ok', rule: null };
+
+  // Rule 1: Accent tolerance -> OK
+  if (tolerances.accents && stripAccents(a.trim()) === stripAccents(b.trim())) {
+    return { status: 'ok', rule: 'accents' };
+  }
+
+  // Rule 2: Gender grammar -> OK
+  if (tolerances.genderGrammar && isGenderGrammarMatch(a, b)) {
+    return { status: 'ok', rule: 'gender' };
+  }
+
+  // Rule 3: Truncation -> OK
+  if (tolerances.truncation && isTruncationMatch(a, b)) {
+    return { status: 'ok', rule: 'truncation' };
+  }
+
+  // Rule 4: OCR similarity (Levenshtein) -> MINOR
+  if (tolerances.ocrSimilarity && a !== 'null' && b !== 'null' && a.length > 0 && b.length > 0) {
+    const dist = levenshtein(normalize(a), normalize(b));
+    const maxLen = Math.max(a.length, b.length);
+    if (dist <= tolerances.ocrThreshold && dist > 0 && maxLen <= 40) {
+      return { status: 'warn', rule: 'ocr' };
+    }
+  }
+
+  return { status: 'ko', rule: null };
+}
+
+// ====== COMPARISON ENGINE ======
+function stringify(v) {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'boolean') return v.toString();
+  return String(v);
+}
+
+function makeRow(field, idpVal, truthVal) {
+  const ivs = stringify(idpVal), tvs = stringify(truthVal);
+  const isNull = ivs === 'null' && tvs === 'null';
+  if (isNull || ivs === tvs) return { type: 'field', field, idpVal: ivs, truthVal: tvs, status: 'ok', isNull, rule: null };
+  if (ivs === 'null' || tvs === 'null') return { type: 'field', field, idpVal: ivs, truthVal: tvs, status: 'ko', isNull: false, rule: null };
+  const { status, rule } = classifyDiff(ivs, tvs, state.tolerances);
+  return { type: 'field', field, idpVal: ivs, truthVal: tvs, status, isNull: false, rule };
+}
+
+function compareJSON(idp, truth) {
+  const rows = [];
+  const sections = ['contrat', 'assure_principal', 'ayants_droit', 'paiement_et_signature'];
+  for (const section of sections) {
+    const idpSec = idp[section] || {}, truthSec = truth[section] || {};
+    if (section === 'contrat' || section === 'paiement_et_signature') {
+      rows.push({ type: 'section', label: section === 'contrat' ? 'Contrat' : 'Paiement & Signature' });
+      for (const key of [...new Set([...Object.keys(idpSec), ...Object.keys(truthSec)])]) {
+        rows.push(makeRow(key, idpSec[key] ?? null, truthSec[key] ?? null));
+      }
+    } else if (section === 'assure_principal') {
+      rows.push({ type: 'section', label: 'Assuré Principal' });
+      const idpCiv = idpSec.civilite || idpSec, truthCiv = truthSec.civilite || truthSec;
+      for (const key of [...new Set([...Object.keys(idpCiv), ...Object.keys(truthCiv)])]) {
+        if (typeof idpCiv[key] === 'object' && idpCiv[key] !== null) continue;
+        rows.push(makeRow(key, idpCiv[key] ?? null, truthCiv[key] ?? null));
+      }
+    } else if (section === 'ayants_droit') {
+      const idpConj = idpSec.conjoint || {}, truthConj = truthSec.conjoint || {};
+      rows.push({ type: 'section', label: 'Ayants Droit — Conjoint' });
+      if (truthConj.present !== true && idpConj.present !== true) {
+        rows.push(makeRow('present', idpConj.present ?? null, truthConj.present ?? null));
+      } else {
+        for (const key of [...new Set([...Object.keys(idpConj), ...Object.keys(truthConj)])]) rows.push(makeRow(key, idpConj[key] ?? null, truthConj[key] ?? null));
+      }
+      const idpE = idpSec.enfants || [], truthE = truthSec.enfants || [];
+      const maxLen = Math.max(idpE.length, truthE.length);
+      for (let i = 0; i < maxLen; i++) {
+        const ie = idpE[i] || {}, te = truthE[i] || {};
+        rows.push({ type: 'section', label: maxLen > 1 ? `Ayants Droit — Enfant ${i+1}` : 'Ayants Droit — Enfants' });
+        const allNull = Object.values(ie).every(v => v === null) && Object.values(te).every(v => v === null);
+        if (allNull) { rows.push({ type: 'field', field: '(tous champs)', idpVal: 'null', truthVal: 'null', status: 'ok', isNull: true, rule: null }); }
+        else { for (const key of [...new Set([...Object.keys(ie), ...Object.keys(te)])]) rows.push(makeRow(key, ie[key] ?? null, te[key] ?? null)); }
+      }
+    }
+  }
+  return rows;
+}
+
+function analyzeResults(docs) {
+  let totalFields = 0, okCount = 0, koCount = 0, warnCount = 0;
+  const errors = [];
+  for (const doc of docs) {
+    for (const row of doc.rows) {
+      if (row.type !== 'field') continue;
+      totalFields++;
+      if (row.status === 'ok') okCount++;
+      else if (row.status === 'ko') { koCount++; errors.push({ doc: doc.name, field: row.field, idp: row.idpVal, truth: row.truthVal, severity: 'ko', rule: row.rule }); }
+      else if (row.status === 'warn') { warnCount++; errors.push({ doc: doc.name, field: row.field, idp: row.idpVal, truth: row.truthVal, severity: 'warn', rule: row.rule }); }
+    }
+  }
+  return { totalFields, okCount, koCount, warnCount, pct: totalFields > 0 ? Math.round((okCount / totalFields) * 100) : 0, errors };
+}
+
+// ====== RENDER ======
+function render() {
+  const app = document.getElementById('app');
+  let html = state.view === 'input' ? renderInputView() : renderResultsView();
+  if (state.showSettings) html += renderSettingsOverlay();
+  app.innerHTML = html;
+  if (state.view === 'input') bindInputEvents(); else bindResultEvents();
+  if (state.showSettings) bindSettingsEvents();
+}
+
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderActiveRulesBar() {
+  const t = state.tolerances;
+  const rules = [
+    { label: 'Accents', on: t.accents, type: 'ok' },
+    { label: 'Genre gramm.', on: t.genderGrammar, type: 'ok' },
+    { label: 'Troncature', on: t.truncation, type: 'ok' },
+    { label: `OCR (dist\u2264${t.ocrThreshold})`, on: t.ocrSimilarity, type: 'warn' },
+  ];
+  return `<div class="active-rules-bar"><span class="ar-label">Tol\u00e9rances actives :</span>${rules.map(r =>
+    `<span class="rule-pill ${r.on ? (r.type==='ok'?'ok-rule':'warn-rule') : 'off'}">${r.on?'\u2713':'\u2717'} ${r.label}${r.on?(r.type==='ok'?' \u2192 OK':' \u2192 Mineur'):''}</span>`
+  ).join('')}</div>`;
+}
+
+function renderSettingsOverlay() {
+  const t = state.tolerances;
+  return `<div class="settings-overlay" id="settingsOverlay"><div class="settings-panel">
+    <div class="settings-header">
+      <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> R\u00e8gles de tol\u00e9rance</h2>
+      <button class="close-btn" id="closeSettings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <div class="settings-section-title">Tol\u00e9rances \u2192 Accept\u00e9 (OK) <span class="section-line"></span></div>
+        <div class="rule-card"><div class="rule-top"><div class="rule-info">
+          <div class="rule-name">Accents & diacritiques <span class="rule-result-tag ok">\u2192 OK</span></div>
+          <div class="rule-desc">Les diff\u00e9rences d\u2019accents sont ignor\u00e9es. L\u2019OCR peut perdre les accents (é, è, ê, ç, etc.).</div>
+        </div><div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="tol-accents" ${t.accents?'checked':''}/><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div></div>
+        <div class="rule-examples"><span class="rule-example">Lea <span class="arr">\u2192</span> L\u00e9a</span><span class="rule-example">Resume <span class="arr">\u2192</span> R\u00e9sum\u00e9</span></div></div>
+
+        <div class="rule-card"><div class="rule-top"><div class="rule-info">
+          <div class="rule-name">Genre grammatical <span class="rule-result-tag ok">\u2192 OK</span></div>
+          <div class="rule-desc">Les variations masculin/f\u00e9minin sont accept\u00e9es (G\u00e9n\u00e9ral/G\u00e9n\u00e9rale, National/Nationale).</div>
+        </div><div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="tol-gender" ${t.genderGrammar?'checked':''}/><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div></div>
+        <div class="rule-examples"><span class="rule-example">G\u00e9n\u00e9rale <span class="arr">\u2192</span> G\u00e9n\u00e9ral</span><span class="rule-example">Nationale <span class="arr">\u2192</span> National</span></div></div>
+
+        <div class="rule-card"><div class="rule-top"><div class="rule-info">
+          <div class="rule-name">Troncature & s\u00e9parateurs <span class="rule-result-tag ok">\u2192 OK</span></div>
+          <div class="rule-desc">Slashs, points ou espaces en fin de cha\u00eene ignor\u00e9s. Id\u00e9al pour les documents anonymis\u00e9s avec dates tronqu\u00e9es.</div>
+        </div><div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="tol-truncation" ${t.truncation?'checked':''}/><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div></div>
+        <div class="rule-examples"><span class="rule-example">06/01/ <span class="arr">\u2192</span> 06/01</span><span class="rule-example">22/09/ <span class="arr">\u2192</span> 22/09</span></div></div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Tol\u00e9rance \u2192 Mineur <span class="section-line"></span></div>
+        <div class="rule-card"><div class="rule-top"><div class="rule-info">
+          <div class="rule-name">Similarit\u00e9 OCR (Levenshtein) <span class="rule-result-tag warn">\u2192 MINEUR</span></div>
+          <div class="rule-desc">Si deux valeurs sont proches en distance d\u2019\u00e9dition, l\u2019\u00e9cart est class\u00e9 \u201cMineur\u201d au lieu de \u201cKO\u201d. Pour les erreurs de lecture OCR (caract\u00e8res confondus).</div>
+        </div><div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="tol-ocr" ${t.ocrSimilarity?'checked':''}/><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div></div>
+        <div class="rule-examples"><span class="rule-example">Noea <span class="arr">\u2192</span> Nola</span><span class="rule-example">19/07/9 <span class="arr">\u2192</span> 19/07/</span><span class="rule-example">Marin <span class="arr">\u2192</span> Marine</span></div>
+        <div class="slider-row" id="ocrSliderRow" style="${t.ocrSimilarity?'':'opacity:0.3;pointer-events:none'}">
+          <span class="slider-label">Distance max :</span>
+          <input type="range" min="1" max="5" value="${t.ocrThreshold}" id="ocrThreshold" />
+          <span class="slider-value" id="ocrThresholdVal">${t.ocrThreshold}</span>
+        </div></div>
+      </div>
+    </div>
+  </div></div>`;
+}
+
+function renderInputView() {
+  const docCards = state.docs.map((doc, i) => `
+    <div class="doc-card" style="animation-delay:${i*0.06}s">
+      <div class="doc-card-header">
+        <div class="doc-card-header-left">
+          <div class="doc-num">${i+1}</div>
+          <input class="doc-name-input" type="text" placeholder="Nom du document (optionnel)" value="${esc(doc.name)}" data-id="${doc.id}" data-field="name" />
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="example-link" data-id="${doc.id}">Charger exemple</span>
+          ${state.docs.length > 1 ? `<button class="remove-btn" data-id="${doc.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ''}
+        </div>
+      </div>
+      <div class="doc-card-body">
+        <div class="json-panel"><div class="json-label idp"><span class="label-dot idp"></span>JSON IDP MuleSoft</div>
+          <textarea placeholder="Collez le JSON extrait par IDP MuleSoft ici..." data-id="${doc.id}" data-field="idp">${esc(doc.idp)}</textarea>
+          <div class="json-status" id="status-idp-${doc.id}"></div>
+        </div>
+        <div class="json-panel"><div class="json-label truth"><span class="label-dot truth"></span>JSON Source de V\u00e9rit\u00e9</div>
+          <textarea placeholder="Collez le JSON source de v\u00e9rit\u00e9 ici..." data-id="${doc.id}" data-field="truth">${esc(doc.truth)}</textarea>
+          <div class="json-status" id="status-truth-${doc.id}"></div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  return `<div class="topbar"><div class="topbar-left"><div class="logo">ID</div><div><h1>IDP Comparator</h1><div class="topbar-subtitle">MuleSoft OCR Audit Tool</div></div></div>
+    <div class="topbar-actions"><button class="btn btn-settings" id="settingsBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Param\u00e8tres</button></div></div>
+    <div class="input-view"><h2>Comparer les extractions IDP</h2><p class="subtitle">Collez vos JSON c\u00f4te \u00e0 c\u00f4te pour chaque document, puis lancez l\u2019analyse.</p>
+    ${renderActiveRulesBar()}
+    <div class="doc-cards">${docCards}
+      <button class="add-doc-btn" id="addDocBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter un document</button>
+    </div>
+    <div class="actions-row">
+      <button class="btn btn-ghost" id="clearAllBtn">Tout effacer</button>
+      <button class="btn btn-primary btn-compare" id="compareBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Lancer la comparaison</button>
+    </div></div>`;
+}
+
+function renderResultsView() {
+  const r = state.results, { stats, docs } = r;
+  const RULE_LABELS = { accents: 'Accent tol\u00e9r\u00e9', gender: 'Genre tol\u00e9r\u00e9', truncation: 'Troncature tol\u00e9r\u00e9e', ocr: 'OCR similaire' };
+
+  const docSections = docs.map((doc, i) => {
+    const docKo = doc.rows.filter(r => r.type==='field' && r.status==='ko').length;
+    const docWarn = doc.rows.filter(r => r.type==='field' && r.status==='warn').length;
+    const docTol = doc.rows.filter(r => r.type==='field' && r.status==='ok' && r.rule).length;
+    let badgeHtml;
+    if (docKo === 0 && docWarn === 0) badgeHtml = `<span class="badge ok">Parfait${docTol>0?` (${docTol} tol\u00e9r\u00e9${docTol>1?'s':''})`:''}</span>`;
+    else { const p=[]; if(docKo>0) p.push(`${docKo} erreur${docKo>1?'s':''}`); if(docWarn>0) p.push(`${docWarn} mineur${docWarn>1?'s':''}`); badgeHtml=`<span class="badge ${docKo>0?'ko':'warn'}">${p.join(' + ')}</span>`; }
+
+    const tableRows = doc.rows.map(row => {
+      if (row.type === 'section') return `<tr class="section-row"><td colspan="5">${esc(row.label)}</td></tr>`;
+      let toleranceHtml = '';
+      if (row.rule && row.status === 'ok') toleranceHtml = `<span class="tolerance-tag ok">${RULE_LABELS[row.rule]||row.rule}</span>`;
+      else if (row.rule && row.status === 'warn') toleranceHtml = `<span class="tolerance-tag warn">${RULE_LABELS[row.rule]||row.rule}</span>`;
+      let statusHtml;
+      if (row.status==='ok') statusHtml=`<span class="status ok"><span class="dot green"></span>OK</span>${toleranceHtml}`;
+      else if (row.status==='warn') statusHtml=`<span class="status warn"><span class="dot amber"></span>Mineur</span>${toleranceHtml}`;
+      else statusHtml=`<span class="status ko"><span class="dot red"></span>KO</span>`;
+      let idpDisplay = esc(row.idpVal);
+      if (row.status==='ko') idpDisplay=`<span class="diff-hl">${esc(row.idpVal)}</span>`;
+      else if (row.status==='warn') idpDisplay=`<span class="diff-hl-warn">${esc(row.idpVal)}</span>`;
+      const ic = row.isNull?'val null-val':(row.status==='ko'?'val error-val':'val');
+      return `<tr><td></td><td class="field-name">${esc(row.field)}</td><td class="${ic}">${idpDisplay}</td><td class="${row.isNull?'val null-val':'val'}">${esc(row.truthVal)}</td><td>${statusHtml}</td></tr>`;
+    }).join('');
+
+    return `<div class="doc-result" style="animation-delay:${i*0.08}s"><div class="doc-result-title"><div class="doc-num">${i+1}</div>${esc(doc.name)} ${badgeHtml}</div>
+      <table><thead><tr><th style="width:30px"></th><th>Champ</th><th>IDP MuleSoft</th><th>Source de V\u00e9rit\u00e9</th><th>Statut</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+  }).join('');
+
+  const errorsHtml = stats.errors.length > 0 ? stats.errors.map(e => {
+    const ruleLabel = e.rule === 'ocr' ? ' (OCR similaire)' : '';
+    return `<div class="error-item ${e.severity}"><span class="dot ${e.severity==='ko'?'red':'amber'}"></span><span class="error-doc">${esc(e.doc)}</span><span><b>${esc(e.field)}</b> \u2014 IDP: <code>${esc(e.idp)}</code> \u2192 Attendu: <code>${esc(e.truth)}</code>${ruleLabel}</span></div>`;
+  }).join('') : `<div class="no-errors"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--green)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><div>Aucune erreur d\u00e9tect\u00e9e \u2014 Extraction parfaite !</div></div>`;
+
+  return `<div class="topbar"><div class="topbar-left"><div class="logo">ID</div><div><h1>IDP Comparator</h1><div class="topbar-subtitle">MuleSoft OCR Audit Tool</div></div></div>
+    <div class="topbar-actions">
+      <button class="btn btn-settings" id="settingsBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Param\u00e8tres</button>
+      <button class="btn btn-ghost" id="backBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Retour</button>
+      <button class="btn btn-ghost" id="newBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouvelle analyse</button>
+    </div></div>
+    <div class="results-view">
+      <div class="kpi-row">
+        <div class="kpi blue"><div class="value">${stats.totalFields}</div><div class="label">Champs analys\u00e9s</div></div>
+        <div class="kpi green"><div class="value">${stats.pct}%</div><div class="label">Taux de match</div></div>
+        <div class="kpi green"><div class="value">${stats.okCount}</div><div class="label">OK</div></div>
+        <div class="kpi red"><div class="value">${stats.koCount}</div><div class="label">Erreurs</div></div>
+        <div class="kpi amber"><div class="value">${stats.warnCount}</div><div class="label">Mineurs</div></div>
+      </div>
+      ${renderActiveRulesBar()}
+      <div class="legend">
+        <div class="legend-item"><span class="dot green"></span> Match exact ou tol\u00e9r\u00e9</div>
+        <div class="legend-item"><span class="dot amber"></span> \u00c9cart mineur (OCR similaire)</div>
+        <div class="legend-item"><span class="dot red"></span> Erreur (valeur incorrecte / manquante)</div>
+      </div>
+      ${docSections}
+      <div class="summary-box"><h3>Synth\u00e8se des \u00c9carts</h3><div class="error-list">${errorsHtml}</div></div>
+    </div>`;
+}
+
+// ====== EVENTS ======
+function bindInputEvents() {
+  document.querySelectorAll('textarea, .doc-name-input').forEach(el => {
+    el.addEventListener('input', e => {
+      const id = parseInt(e.target.dataset.id), field = e.target.dataset.field;
+      const doc = state.docs.find(d => d.id === id);
+      if (doc) doc[field] = e.target.value;
+      if (field === 'idp' || field === 'truth') validateJSON(e.target.value, `status-${field}-${id}`);
+    });
+  });
+  state.docs.forEach(doc => { if (doc.idp) validateJSON(doc.idp, `status-idp-${doc.id}`); if (doc.truth) validateJSON(doc.truth, `status-truth-${doc.id}`); });
+  document.getElementById('addDocBtn').addEventListener('click', () => { state.docs.push({ id: state.nextId++, name: '', idp: '', truth: '' }); render(); });
+  document.querySelectorAll('.remove-btn').forEach(btn => btn.addEventListener('click', e => { state.docs = state.docs.filter(d => d.id !== parseInt(e.currentTarget.dataset.id)); render(); }));
+  document.querySelectorAll('.example-link').forEach(el => el.addEventListener('click', e => {
+    const doc = state.docs.find(d => d.id === parseInt(e.target.dataset.id));
+    if (doc) { doc.idp = JSON.stringify(EXAMPLE_IDP,null,2); doc.truth = JSON.stringify(EXAMPLE_TRUTH,null,2); doc.name = 'Exemple \u2014 L\u00e9a'; render(); }
+  }));
+  document.getElementById('clearAllBtn').addEventListener('click', () => { state.docs = [{ id: state.nextId++, name: '', idp: '', truth: '' }]; render(); });
+  document.getElementById('compareBtn').addEventListener('click', runComparison);
+  document.getElementById('settingsBtn').addEventListener('click', () => { state.showSettings = true; render(); });
+}
+
+function bindResultEvents() {
+  document.getElementById('backBtn').addEventListener('click', () => { state.view = 'input'; render(); });
+  document.getElementById('newBtn').addEventListener('click', () => { state.docs = [{ id: state.nextId++, name: '', idp: '', truth: '' }]; state.view = 'input'; render(); });
+  document.getElementById('settingsBtn').addEventListener('click', () => { state.showSettings = true; render(); });
+}
+
+function bindSettingsEvents() {
+  document.getElementById('closeSettings').addEventListener('click', () => { state.showSettings = false; render(); });
+  document.getElementById('settingsOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) { state.showSettings = false; render(); } });
+  const rerun = () => { if (state.results && state.view === 'results') rerunComparison(); else render(); };
+  document.getElementById('tol-accents').addEventListener('change', e => { state.tolerances.accents = e.target.checked; rerun(); });
+  document.getElementById('tol-gender').addEventListener('change', e => { state.tolerances.genderGrammar = e.target.checked; rerun(); });
+  document.getElementById('tol-truncation').addEventListener('change', e => { state.tolerances.truncation = e.target.checked; rerun(); });
+  document.getElementById('tol-ocr').addEventListener('change', e => {
+    state.tolerances.ocrSimilarity = e.target.checked;
+    const sr = document.getElementById('ocrSliderRow'); if(sr) sr.style = e.target.checked ? '' : 'opacity:0.3;pointer-events:none';
+    rerun();
+  });
+  document.getElementById('ocrThreshold').addEventListener('input', e => { state.tolerances.ocrThreshold = parseInt(e.target.value); document.getElementById('ocrThresholdVal').textContent = e.target.value; });
+  document.getElementById('ocrThreshold').addEventListener('change', rerun);
+}
+
+function rerunComparison() {
+  const docs = [];
+  for (const doc of state.docs) {
+    try { const rows = compareJSON(JSON.parse(doc.idp), JSON.parse(doc.truth)); docs.push({ name: doc.name || `Document ${state.docs.indexOf(doc)+1}`, rows }); } catch(e) { return; }
+  }
+  state.results = { docs, stats: analyzeResults(docs) };
+  state.showSettings = true;
+  render();
+}
+
+function validateJSON(str, statusId) {
+  const el = document.getElementById(statusId);
+  if (!el) return;
+  if (!str.trim()) { el.innerHTML = ''; el.className = 'json-status'; return; }
+  try { JSON.parse(str); el.innerHTML = '\u2713 JSON valide'; el.className = 'json-status valid'; }
+  catch(e) { el.innerHTML = '\u2717 JSON invalide'; el.className = 'json-status invalid'; }
+}
+
+function runComparison() {
+  const results = [];
+  for (let i = 0; i < state.docs.length; i++) {
+    const doc = state.docs[i];
+    if (!doc.idp.trim() || !doc.truth.trim()) { alert(`Document ${i+1} : veuillez remplir les deux JSON.`); return; }
+    let idpObj, truthObj;
+    try { idpObj = JSON.parse(doc.idp); } catch(e) { alert(`Document ${i+1} \u2014 JSON IDP invalide:\n${e.message}`); return; }
+    try { truthObj = JSON.parse(doc.truth); } catch(e) { alert(`Document ${i+1} \u2014 JSON V\u00e9rit\u00e9 invalide:\n${e.message}`); return; }
+    results.push({ name: doc.name || `Document ${i+1}`, rows: compareJSON(idpObj, truthObj) });
+  }
+  state.results = { docs: results, stats: analyzeResults(results) };
+  state.view = 'results';
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+const EXAMPLE_IDP = {"contrat":{"raison_sociale":"SAS B","siret_siren":"4800124","numero_contrat":"A9910065019","college_population":null,"niveau_couverture":"Base"},"assure_principal":{"civilite":{"prenom":"Lea","genre":"F","date_naissance":"28/01/1990","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9rale","date_debut_affiliation":"01/01/2020"}},"ayants_droit":{"conjoint":{"present":false,"prenom":null,"genre":null,"date_naissance":null,"numero_securite_sociale":null,"type_regime":null},"enfants":[{"prenom":"Noea","genre":null,"date_naissance":"19/07/9","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9rale"}]},"paiement_et_signature":{"iban":null,"titulaire_rib":null,"signature_presente":true,"date_signature":"20/01/2026"}};
+const EXAMPLE_TRUTH = {"contrat":{"raison_sociale":"SAS B","siret_siren":"4800124","numero_contrat":"A9910065019","college_population":null,"niveau_couverture":"Base"},"assure_principal":{"civilite":{"prenom":"L\u00e9a","genre":"F","date_naissance":"28/01/1990","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9ral","date_debut_affiliation":"01/01/2026"}},"ayants_droit":{"conjoint":{"present":false,"prenom":null,"genre":null,"date_naissance":null,"numero_securite_sociale":null,"type_regime":null},"enfants":[{"prenom":"Nola","genre":null,"date_naissance":"19/07/","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9ral"}]},"paiement_et_signature":{"iban":null,"titulaire_rib":null,"signature_presente":true,"date_signature":"20/01/2026"}};
+
+render();
+</script>
+</body>
+</html>
