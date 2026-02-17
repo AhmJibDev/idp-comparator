@@ -175,12 +175,14 @@
   .remove-btn:hover { color: var(--red); background: var(--red-bg); }
   .example-link { color: var(--blue); cursor: pointer; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; opacity: 0.7; transition: opacity 0.2s; }
   .example-link:hover { opacity: 1; }
-  .active-rules-bar { display: none !important; }
-  .active-rules-bar .ar-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-right: 4px; }
-  .rule-pill { font-size: 11px; padding: 4px 12px; border-radius: 16px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
-  .rule-pill.ok-rule { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
-  .rule-pill.warn-rule { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
-  .rule-pill.off { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); text-decoration: line-through; }
+  .doc-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; align-items: center; }
+  .doc-nav-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
+  .doc-nav-item { font-size: 12px; padding: 5px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .doc-nav-item:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-bg); }
+  .doc-nav-item .nav-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .doc-nav-item .nav-dot.green { background: var(--green); }
+  .doc-nav-item .nav-dot.red { background: var(--red); }
+  .doc-nav-item .nav-dot.amber { background: var(--amber); }
   .btn-export { background: var(--surface-2); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
   .btn-export:hover { border-color: var(--green); background: rgba(52,211,153,0.08); }
   @media (max-width: 768px) {
@@ -198,13 +200,36 @@
 <div class="app" id="app"></div>
 <script>
 // ====== STATE ======
+const STORAGE_KEY = 'idp_comparator_state';
+
+function saveState() {
+  try {
+    const toSave = {
+      docs: state.docs,
+      nextId: state.nextId,
+      tolerances: state.tolerances,
+      view: state.view,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+const saved = loadState();
 let state = {
-  view: 'input',
+  view: saved ? saved.view || 'input' : 'input',
   showSettings: false,
-  docs: [{ id: 1, name: '', idp: '', truth: '' }],
-  nextId: 2,
+  docs: saved && saved.docs && saved.docs.length > 0 ? saved.docs : [{ id: 1, name: '', idp: '', truth: '' }],
+  nextId: saved ? saved.nextId || 2 : 2,
   results: null,
-  tolerances: {
+  tolerances: saved && saved.tolerances ? saved.tolerances : {
     accents: true,
     genderGrammar: true,
     truncation: true,
@@ -272,6 +297,17 @@ function classifyDiff(idpVal, truthVal, tolerances) {
   // Rule 3: Truncation -> OK
   if (tolerances.truncation && isTruncationMatch(a, b)) {
     return { status: 'ok', rule: 'truncation' };
+  }
+
+  // Rule 3b: Numeric prefix match (truncated documents) -> OK
+  if (tolerances.truncation) {
+    const na = a.replace(/\s+/g, '');
+    const nb = b.replace(/\s+/g, '');
+    if (/^\d+$/.test(na) && /^\d+$/.test(nb) && na.length >= 4 && nb.length >= 4) {
+      if (na.startsWith(nb) || nb.startsWith(na)) {
+        return { status: 'ok', rule: 'truncation' };
+      }
+    }
   }
 
   // Rule 4: OCR similarity (Levenshtein) -> MINOR
@@ -360,6 +396,7 @@ function analyzeResults(docs) {
 
 // ====== RENDER ======
 function render() {
+  saveState();
   const app = document.getElementById('app');
   let html = state.view === 'input' ? renderInputView() : renderResultsView();
   if (state.showSettings) html += renderSettingsOverlay();
@@ -370,17 +407,15 @@ function render() {
 
 function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function renderActiveRulesBar() {
-  const t = state.tolerances;
-  const rules = [
-    { label: 'Accents', on: t.accents, type: 'ok' },
-    { label: 'Genre gramm.', on: t.genderGrammar, type: 'ok' },
-    { label: 'Troncature', on: t.truncation, type: 'ok' },
-    { label: `OCR (dist\u2264${t.ocrThreshold})`, on: t.ocrSimilarity, type: 'warn' },
-  ];
-  return `<div class="active-rules-bar"><span class="ar-label">Tol\u00e9rances actives :</span>${rules.map(r =>
-    `<span class="rule-pill ${r.on ? (r.type==='ok'?'ok-rule':'warn-rule') : 'off'}">${r.on?'\u2713':'\u2717'} ${r.label}${r.on?(r.type==='ok'?' \u2192 OK':' \u2192 Mineur'):''}</span>`
-  ).join('')}</div>`;
+function renderDocNav(docs) {
+  const items = docs.map((doc, i) => {
+    const fields = doc.rows.filter(r => r.type === 'field');
+    const ko = fields.filter(r => r.status === 'ko').length;
+    const warn = fields.filter(r => r.status === 'warn').length;
+    const dotColor = ko > 0 ? 'red' : (warn > 0 ? 'amber' : 'green');
+    return `<a class="doc-nav-item" href="#doc-${i}" onclick="document.getElementById('doc-${i}').scrollIntoView({behavior:'smooth',block:'start'});return false;"><span class="nav-dot ${dotColor}"></span>${esc(doc.name)}</a>`;
+  });
+  return `<div class="doc-nav"><span class="doc-nav-label">Navigation :</span>${items.join('')}</div>`;
 }
 
 function renderSettingsOverlay() {
@@ -457,7 +492,6 @@ function renderInputView() {
   return `<div class="topbar"><div class="topbar-left"><div class="logo">ID</div><div><h1>IDP Comparator</h1><div class="topbar-subtitle">MuleSoft OCR Audit Tool</div></div></div>
     <div class="topbar-actions"><button class="btn btn-settings" id="settingsBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Param\u00e8tres</button></div></div>
     <div class="input-view"><h2>Comparer les extractions IDP</h2><p class="subtitle">Collez vos JSON c\u00f4te \u00e0 c\u00f4te pour chaque document, puis lancez l\u2019analyse.</p>
-    ${renderActiveRulesBar()}
     <div class="doc-cards">${docCards}
       <button class="add-doc-btn" id="addDocBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter un document</button>
     </div>
@@ -499,7 +533,7 @@ function renderResultsView() {
       return `<tr><td></td><td class="field-name">${esc(row.field)}</td><td class="${ic}">${idpDisplay}</td><td class="${row.isNull?'val null-val':'val'}">${esc(row.truthVal)}</td><td>${statusHtml}</td></tr>`;
     }).join('');
 
-    return `<div class="doc-result" style="animation-delay:${i*0.08}s"><div class="doc-result-title"><div class="doc-num">${i+1}</div>${esc(doc.name)} ${recapHtml} ${badgeHtml}</div>
+    return `<div class="doc-result" id="doc-${i}" style="animation-delay:${i*0.08}s"><div class="doc-result-title"><div class="doc-num">${i+1}</div>${esc(doc.name)} ${recapHtml} ${badgeHtml}</div>
       <table><thead><tr><th style="width:30px"></th><th>Champ</th><th>IDP MuleSoft</th><th>Source de V\u00e9rit\u00e9</th><th>Statut</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
   }).join('');
 
@@ -523,7 +557,7 @@ function renderResultsView() {
         <div class="kpi red"><div class="value">${stats.koCount}</div><div class="label">Erreurs</div></div>
         <div class="kpi amber"><div class="value">${stats.warnCount}</div><div class="label">Mineurs</div></div>
       </div>
-      ${renderActiveRulesBar()}
+      ${renderDocNav(docs)}
       <div class="legend">
         <div class="legend-item"><span class="dot green"></span> Match exact ou tol\u00e9r\u00e9</div>
         <div class="legend-item"><span class="dot amber"></span> \u00c9cart mineur (OCR similaire)</div>
@@ -699,6 +733,23 @@ function exportToExcel() {
 
 const EXAMPLE_IDP = {"contrat":{"raison_sociale":"SAS B","siret_siren":"4800124","numero_contrat":"A9910065019","college_population":null,"niveau_couverture":"Base"},"assure_principal":{"civilite":{"prenom":"Lea","genre":"F","date_naissance":"28/01/1990","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9rale","date_debut_affiliation":"01/01/2020"}},"ayants_droit":{"conjoint":{"present":false,"prenom":null,"genre":null,"date_naissance":null,"numero_securite_sociale":null,"type_regime":null},"enfants":[{"prenom":"Noea","genre":null,"date_naissance":"19/07/9","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9rale"}]},"paiement_et_signature":{"iban":null,"titulaire_rib":null,"signature_presente":true,"date_signature":"20/01/2026"}};
 const EXAMPLE_TRUTH = {"contrat":{"raison_sociale":"SAS B","siret_siren":"4800124","numero_contrat":"A9910065019","college_population":null,"niveau_couverture":"Base"},"assure_principal":{"civilite":{"prenom":"L\u00e9a","genre":"F","date_naissance":"28/01/1990","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9ral","date_debut_affiliation":"01/01/2026"}},"ayants_droit":{"conjoint":{"present":false,"prenom":null,"genre":null,"date_naissance":null,"numero_securite_sociale":null,"type_regime":null},"enfants":[{"prenom":"Nola","genre":null,"date_naissance":"19/07/","numero_securite_sociale":"290010","type_regime":"G\u00e9n\u00e9ral"}]},"paiement_et_signature":{"iban":null,"titulaire_rib":null,"signature_presente":true,"date_signature":"20/01/2026"}};
+
+// Auto-rerun comparison if we restored a results view
+if (state.view === 'results') {
+  const docs = [];
+  let canRerun = true;
+  for (const doc of state.docs) {
+    try {
+      const rows = compareJSON(JSON.parse(doc.idp), JSON.parse(doc.truth));
+      docs.push({ name: doc.name || `Document ${state.docs.indexOf(doc)+1}`, rows });
+    } catch(e) { canRerun = false; break; }
+  }
+  if (canRerun && docs.length > 0) {
+    state.results = { docs, stats: analyzeResults(docs) };
+  } else {
+    state.view = 'input';
+  }
+}
 
 render();
 </script>
